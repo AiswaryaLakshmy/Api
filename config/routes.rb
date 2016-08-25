@@ -7,8 +7,9 @@ Rails.application.routes.draw do
 	    	post '/register' => 'users#register'
 	    	post '/login' => 'users#login'
 	    	post '/location' => 'users#location'
+	    	get '/get_location' => 'users#get_location'
 	    	post '/logout' => 'users#logout'
-	    
+	    	
 	    end
 	  end
 	end

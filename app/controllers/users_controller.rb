@@ -1,5 +1,5 @@
 class UsersController < ApplicationController
-	before_action :restrict_access, except: [:register, :login]
+	before_action :authenticate, except: [:register, :login, :location, :get_location ]
 	# skip_before_action :authenticate, only: [ :register, :login ]
 
 	def register
@@ -18,10 +18,10 @@ class UsersController < ApplicationController
 
 	def login
 		
-		password = Digest::SHA1.hexdigest(user_params[:password])
 		@user = User.find_by(username: user_params[:username])
-		# if @user.try(:username) == user_params[:username]
-		if @user.try(:encrypted_password) == password
+		password = Digest::SHA1.hexdigest(user_params[:password])
+		# if @user.username == user_params[:username]
+		if @user.encrypted_password == password
 			render json: { status: 'success', code: 200, data: @user,
                    message: 'User logged in successfully'} 
     else
@@ -31,7 +31,8 @@ class UsersController < ApplicationController
 	end
 
 	def location
-		if @current_user.update_attributes(latitude: user_params[:latitude], longitude: user_params[:longitude])
+		@user = User.find_by(params[:id])
+		if @user.update_attributes(latitude: user_params[:latitude], longitude: user_params[:longitude])
 			render json: { status: 'success', code: 200, data: @user,
                  message: 'Location updated'} 
 		else
@@ -40,10 +41,23 @@ class UsersController < ApplicationController
     end 
 	end
 
+	def get_location
+		if @user = User.find_by(params[:id])
+			@lat = @user.latitude
+			@lon = @user.longitude
+			render json: { status: 'success', code: 200, data: {latitude: @lat, longitude: @lon},
+                 message: 'Location returned successfully'} 
+    else
+    	render json: { status: 'error', code: 400, data: @user.errors.full_messages,
+                 message: 'Error, location not returned'}
+    end 
+
+	end
+
 	def logout
-		# binding.pry
-		@current_user.access_token = nil
-		if @current_user.access_token.save
+		@user = User.find_by(params[:id])
+		@user.access_token = nil
+		if @user.access_token.save
 			render json: { status: 'success', code: 200, data: nil,
 	                message: 'Logged out successfully'} 
     else
@@ -51,46 +65,37 @@ class UsersController < ApplicationController
 	                message: 'Logged out error'} 
     end
 	end
-# data: @user.errors.full_messages,
+
 	private
 	def user_params
 		params.require( :user ).permit( :username, :password, :longitude, :latitude )
 	end
 
-	def restrict_access
-  	authenticate_or_request_with_http_token do |token, options|
-    	ApiKey.exists?(access_token: token)
-  	end
-	end
+	# protected
+	# def authenticate
+ #  	authenticate_or_request_with_http_token do |token, options|
+ #  		User.find_by(auth_token: token)
+	# 	end
+	# end
+
+	protected
+  def authenticate
+    authenticate_token || render_unauthorized
+  end
+
+  def authenticate_token
+    authenticate_with_http_token do |token, options|
+      User.find_by(auth_token: token)
+    end
+  end
+
+  def render_unauthorized
+    self.headers['WWW-Authenticate'] = 'Token realm="Application"'
+    render json: { message:'Bad credentials', status: 401 }
+  end
 
 end
 
-# protected
-  # def authenticate
-  	# controller.headers["WWW-Authenticate"] = %(Token realm="#{realm.gsub(/"/, "")}")
-  	# controller.__send__ :render, :text => "HTTP Token: Access denied.\n", :status => :unauthorized
-  	# binding.pry
-  	# debugger
-    # authenticate_or_request_with_http_token('Premium') do |token, options|
-      # User.find_by(auth_token: token)
-    # end
-  # end
-	# protected
-  # def authenticate
-  # 	# binding.pry
-  #   authenticate_token || render_unauthorized
-  # end
-
-  # def authenticate_token
-  #   authenticate_with_http_token do |token, options|
-  #     User.find_by(auth_token: HTTP_AUTH_TOKEN)
-  #   end
-  # end
-
-  # def render_unauthorized
-  #   self.headers['WWW-Authenticate'] = 'Token realm="Application"'
-  #   render json: {message: 'Bad credentials', status: 401}
-  # end
 
 # {
 #     "user": {
@@ -99,13 +104,3 @@ end
         
 #     }
 # }
-# protected
-  # def authenticate
-  	# controller.headers["WWW-Authenticate"] = %(Token realm="#{realm.gsub(/"/, "")}")
-  	# controller.__send__ :render, :text => "HTTP Token: Access denied.\n", :status => :unauthorized
-  	# binding.pry
-  	# debugger
-    # authenticate_or_request_with_http_token('Premium') do |token, options|
-      # User.find_by(auth_token: token)
-    # end
-  # end
